@@ -1,12 +1,15 @@
 'use client';
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useAuth, useUser, SignInButton, SignUpButton, UserButton } from '@clerk/nextjs';
 import { apiClient, ProjectResponse, ProjectListItem } from "../../lib/api";
 import { showToast } from "../../lib/toast";
 import { ErrorDisplay } from "../../components/ErrorDisplay";
 
 export default function Dashboard() {
   const router = useRouter();
+  const { isSignedIn, isLoaded } = useAuth();
+  const { user } = useUser();
   const [projectName, setProjectName] = useState<string>('');
   const [prompt, setPrompt] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -31,6 +34,14 @@ export default function Dashboard() {
 
   const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Check if user is signed in
+    if (!isSignedIn) {
+      showToast('Please sign in to create a project', { type: 'error' });
+      router.push('/sign-up');
+      return;
+    }
+
     setIsLoading(true);
     setError('');
 
@@ -61,6 +72,8 @@ export default function Dashboard() {
   };
 
   const fetchPreviousProjects = async (forceRefresh: boolean = false) => {
+    if (!isSignedIn) return;
+    
     setIsLoadingProjects(true);
     try {
       // Clear cache if forced refresh
@@ -89,8 +102,10 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
-    fetchPreviousProjects();
-  }, []);
+    if (isLoaded && isSignedIn) {
+      fetchPreviousProjects();
+    }
+  }, [isLoaded, isSignedIn]);
 
   const handleRefreshProjects = () => {
     fetchPreviousProjects(true);
@@ -135,6 +150,21 @@ export default function Dashboard() {
     }
   };
 
+  // Show loading spinner while Clerk is initializing
+  if (!isLoaded) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-[#0a1633] via-[#10192b] to-black flex items-center justify-center">
+        <div className="flex items-center space-x-2 text-white">
+          <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          <span>Loading...</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0a1633] via-[#10192b] to-black text-white font-sans relative overflow-hidden">
       {/* Decorative Glow */}
@@ -163,12 +193,34 @@ export default function Dashboard() {
 
             {/* Right side buttons */}
             <div className="flex items-center space-x-4">
-              <button className="bg-gradient-to-r from-blue-600 to-cyan-500 text-white px-4 py-2 rounded-md font-medium hover:from-blue-700 hover:to-cyan-600 transition shadow-lg">
-                Try exponent!
-              </button>
-              <button className="text-white/70 hover:text-white font-medium transition">
-                Sign in
-              </button>
+              {isSignedIn ? (
+                <>
+                  <span className="text-white/70 text-sm">
+                    Welcome, {user?.firstName || user?.emailAddresses[0]?.emailAddress}
+                  </span>
+                  <UserButton 
+                    appearance={{
+                      elements: {
+                        avatarBox: "w-8 h-8"
+                      }
+                    }}
+                    afterSignOutUrl="/"
+                  />
+                </>
+              ) : (
+                <>
+                  <SignUpButton mode="modal">
+                    <button className="bg-gradient-to-r from-blue-600 to-cyan-500 text-white px-4 py-2 rounded-md font-medium hover:from-blue-700 hover:to-cyan-600 transition shadow-lg">
+                      Try exponent!
+                    </button>
+                  </SignUpButton>
+                  <SignInButton mode="modal">
+                    <button className="text-white/70 hover:text-white font-medium transition">
+                      Sign in
+                    </button>
+                  </SignInButton>
+                </>
+              )}
             </div>
 
             {/* Mobile menu button */}
@@ -226,6 +278,11 @@ export default function Dashboard() {
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold mb-4 bg-gradient-to-r from-white via-blue-200 to-cyan-400 bg-clip-text text-transparent">
                 What are you building<br />today?
               </h1>
+              {!isSignedIn && (
+                <p className="text-white/70 text-lg mb-4">
+                  Sign in to start creating your ML projects
+                </p>
+              )}
             </div>
 
             <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl shadow-2xl p-8 sm:p-10 max-w-2xl mx-auto">
@@ -242,6 +299,7 @@ export default function Dashboard() {
                     onChange={(e) => setProjectName(e.target.value)}
                     className="w-full px-4 py-3 bg-white/10 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-cyan-400/60 transition placeholder-white/40"
                     placeholder="Enter project name"
+                    disabled={!isSignedIn}
                   />
                 </div>
 
@@ -257,6 +315,7 @@ export default function Dashboard() {
                     rows={4}
                     className="w-full px-4 py-3 bg-white/10 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-cyan-400/60 transition placeholder-white/40 resize-none"
                     placeholder="Describe what you want to build..."
+                    disabled={!isSignedIn}
                   />
                 </div>
 
@@ -268,7 +327,8 @@ export default function Dashboard() {
                         key={index}
                         type="button"
                         onClick={() => handleSuggestedPromptClick(suggestion.text)}
-                        className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 border border-white/10 rounded-full text-sm font-medium text-white/80 hover:bg-white/20 hover:border-white/20 transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-400/60"
+                        disabled={!isSignedIn}
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 border border-white/10 rounded-full text-sm font-medium text-white/80 hover:bg-white/20 hover:border-white/20 transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-400/60 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <span className="text-base">{suggestion.icon}</span>
                         <span>{suggestion.text}</span>
@@ -281,7 +341,7 @@ export default function Dashboard() {
                 <div className="text-center">
                   <button
                     type="submit"
-                    disabled={!projectName.trim() || !prompt.trim() || isLoading}
+                    disabled={!projectName.trim() || !prompt.trim() || isLoading || !isSignedIn}
                     className="bg-gradient-to-r from-blue-600 to-cyan-500 text-white px-8 py-3 rounded-lg font-medium hover:from-blue-700 hover:to-cyan-600 transition disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
                   >
                     {isLoading ? (
@@ -292,6 +352,8 @@ export default function Dashboard() {
                         </svg>
                         Creating Project...
                       </div>
+                    ) : !isSignedIn ? (
+                      "Sign in to Create Project"
                     ) : (
                       "Create Project"
                     )}
@@ -321,7 +383,7 @@ export default function Dashboard() {
         )}
 
         {/* Previous Projects Section */}
-        {!projectCreated && (
+        {!projectCreated && isSignedIn && (
           <div className="mt-16 max-w-6xl mx-auto">
             <div className="flex items-center justify-between mb-8">
               <div>
