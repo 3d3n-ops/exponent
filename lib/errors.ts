@@ -133,7 +133,7 @@ export function getErrorDetails(error: string | Error, context?: string): ErrorD
       return {
         type: errorType,
         title: 'File Upload Failed',
-        message: 'Your file couldn\'t be uploaded. Make sure it\'s a valid format and under 100MB.',
+        message: 'Your file couldn\'t be uploaded. Make sure it\'s a valid format and under 500MB.',
         action: 'Try uploading a different file or check the file format',
         retryable: true,
         icon: '📁',
