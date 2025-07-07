@@ -1,4 +1,4 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 
 export interface ProjectPrompt {
   name: string;
@@ -564,6 +564,32 @@ class ApiClient {
       return result;
     } catch (error) {
       console.error('Failed to get training config options:', error);
+      throw error;
+    }
+  }
+
+  async deleteProject(projectId: string): Promise<ProjectResponse> {
+    try {
+      const response = await fetch(`${this.baseUrl}/projects/${projectId}/delete`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        const errorData: ApiError = await response.json();
+        throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      
+      // Invalidate project cache after deletion
+      this.invalidateProjectCache(projectId);
+      
+      return result;
+    } catch (error) {
+      console.error('Failed to delete project:', error);
       throw error;
     }
   }

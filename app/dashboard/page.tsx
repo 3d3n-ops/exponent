@@ -17,6 +17,7 @@ export default function Dashboard() {
   const [previousProjects, setPreviousProjects] = useState<ProjectListItem[]>([]);
   const [isLoadingProjects, setIsLoadingProjects] = useState<boolean>(false);
   const [isDataFromCache, setIsDataFromCache] = useState<boolean>(false);
+  const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null);
 
   const suggestedPrompts = [
     { icon: "📊", text: "Train a text classifier" },
@@ -139,6 +140,31 @@ export default function Dashboard() {
     } else {
       // Navigate to data processing for new projects
       router.push(`/data-processing/${project.project_id}`);
+    }
+  };
+
+  const handleDeleteProject = async (projectId: string, projectName: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent triggering the project click
+    
+    // Show confirmation dialog
+    const confirmed = window.confirm(`Are you sure you want to delete "${projectName}"? This action cannot be undone.`);
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingProjectId(projectId);
+    
+    try {
+      await apiClient.deleteProject(projectId);
+      showToast(`Project "${projectName}" deleted successfully`, { type: 'success' });
+      // Refresh the projects list
+      fetchPreviousProjects(true);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to delete project';
+      showToast(errorMessage, { type: 'error' });
+      console.error("Failed to delete project:", err);
+    } finally {
+      setDeletingProjectId(null);
     }
   };
 
@@ -352,10 +378,29 @@ export default function Dashboard() {
                   <div
                     key={project.project_id}
                     onClick={() => handleProjectClick(project)}
-                    className="bg-gray-800 rounded-lg p-4 cursor-pointer hover:bg-gray-700 transition-colors min-h-[8rem] flex flex-col"
+                    className="bg-gray-800 rounded-lg p-4 cursor-pointer hover:bg-gray-700 transition-colors min-h-[8rem] flex flex-col relative"
                   >
+                    {/* Delete Button */}
+                    <button
+                      onClick={(e) => handleDeleteProject(project.project_id, project.name, e)}
+                      disabled={deletingProjectId === project.project_id}
+                      className="absolute top-2 right-2 p-1 text-gray-400 hover:text-red-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed z-10"
+                      title="Delete project"
+                    >
+                      {deletingProjectId === project.project_id ? (
+                        <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                      ) : (
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      )}
+                    </button>
+
                     <div className="flex items-start justify-between mb-2">
-                      <h3 className="font-semibold text-white text-sm leading-tight line-clamp-2 flex-1">
+                      <h3 className="font-semibold text-white text-sm leading-tight line-clamp-2 flex-1 pr-8">
                         {project.name}
                       </h3>
                       <div className="ml-2 flex-shrink-0">
